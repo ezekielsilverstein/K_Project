@@ -179,7 +179,7 @@ def create_concatenation(years, excluded_positions):
     a dictionary of Standard Deviations based around the positional average
     """
 
-    dfs = dfs = {yr: yearly_stats(yr, excluded_positions) for yr in years}
+    dfs = {yr: yearly_stats(yr, excluded_positions) for yr in years}
     concatenated = pd.concat(dfs, keys=range(min(dfs.keys()), max(dfs.keys()) + 1), names=['Year', 'Position'])
 
     positional_year_by_year = {
@@ -201,9 +201,9 @@ def create_concatenation(years, excluded_positions):
 
 def plot(positional_year_by_year, stdev, ebars):
     """
-    
-    :param positional_year_by_year: 
-    :param stdev: 
+    Plot the rates w/ or w/o errorbars
+    :param positional_year_by_year: dict containing a positions yearly rate
+    :param stdev: position's standard deviation
     :return: 
     """
     fig = plt.figure()
