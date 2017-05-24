@@ -199,7 +199,7 @@ def create_concatenation(years, excluded_positions):
 
     return concatenated, positional_year_by_year, total_rates, stdev
 
-def plot(positional_year_by_year, stdev):
+def plot(positional_year_by_year, stdev, ebars):
     """
     
     :param positional_year_by_year: 
@@ -212,9 +212,13 @@ def plot(positional_year_by_year, stdev):
         if len(years) == 1:
             ax1.scatter(rate.index, rate, label="{} -- {}%".format(pos, 100.0 * round(rate.mean(), 4)))
         elif len(years) > 1:
-            ax1.errorbar(rate.index, rate, yerr=stdev[pos], capsize=10,
-                         label="{} -- {}%".format(pos, 100.0 * round(rate.mean(), 4)))
-            ax1.fill_between(rate.index, rate - stdev[pos], rate + stdev[pos], alpha=0.1, linestyle='--')
+            if ebars:
+                ax1.errorbar(rate.index, rate, yerr=stdev[pos], capsize=10,
+                             label="{} -- {}%".format(pos, 100.0 * round(rate.mean(), 4)))
+                ax1.fill_between(rate.index, rate - stdev[pos], rate + stdev[pos], alpha=0.1, linestyle='--')
+            else:
+                ax1.errorbar(rate.index, rate,
+                             label="{} -- {}%".format(pos, 100.0 * round(rate.mean(), 4)))
 
     ax1.set_title('Positional K Looking Rate\n(Total average in legend)')
     ax1.set_xlabel('Year')
@@ -236,8 +240,11 @@ if __name__ == '__main__':
                         type=int, default=2016,
                         help="Last year to look at data")
     parser.add_argument("--excluded_positions", default = [], nargs='+',
-                        help=("Positions to be excluded from analysis.\n\n"
+                        help=("Positions to be excluded from analysis."
                               "Options must be 1-9, PH or DH"))
+    parser.add_argument("--errorbars",
+                        action='store_true', default=False,
+                        help="Include errorbars (default=False)")
 
     args = parser.parse_args()
 
@@ -245,4 +252,4 @@ if __name__ == '__main__':
 
     concatenated, positional_year_by_year, total_rates, stdev = create_concatenation(years, args.excluded_positions)
 
-    plot(positional_year_by_year, stdev)
+    plot(positional_year_by_year, stdev, args.errorbars)
