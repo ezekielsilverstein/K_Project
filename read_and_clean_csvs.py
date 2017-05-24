@@ -136,7 +136,7 @@ def groupby(joined):
     by_position['L/SO%%'] = by_position['L/SO'] / by_position['TPAa']
     by_position['stdev'] = (((by_position['L/SO'] * (1 - by_position['L/SO%%'])**2)
                              + ((by_position['TPAa'] - by_position['L/SO']) * (0 - by_position['L/SO%%'])**2))
-                            / by_position['TPAa'])
+                            / by_position['TPAa'])**0.5
     by_position.sort_values('L/SO%%', inplace=True)
 
     return by_position
