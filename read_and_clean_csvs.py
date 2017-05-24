@@ -168,6 +168,65 @@ def years_in_question(start, end):
     years = [yr for yr in range(start, end+1)]
     return years
 
+def create_concatenation(years, excluded_positions):
+    """
+    
+    :param years: list of years 
+    :param excluded_positions: list of excluded positions
+    :return: concatenated dataframe of individual dataframes for each year,
+    a dictionary of K-looking rates by year with positions as keys,
+    a Series of average K-looking rates over the years by position,
+    a dictionary of Standard Deviations based around the positional average
+    """
+
+    dfs = dfs = {yr: yearly_stats(yr, excluded_positions) for yr in years}
+    concatenated = pd.concat(dfs, keys=range(min(dfs.keys()), max(dfs.keys()) + 1), names=['Year', 'Position'])
+
+    positional_year_by_year = {
+        pos: concatenated.xs(pos, level='Position')['L/SO%%']
+        for pos in concatenated.loc[args.start_year].index
+    }
+
+    year_totals = concatenated.groupby(['Position']).sum()
+    year_totals['L/SO%%'] = year_totals['L/SO'] / year_totals['TPAa']
+    year_totals.sort_values('L/SO%%', inplace=True)
+    total_rates = year_totals['L/SO%%']
+
+    stdev = {
+        pos: (sum((concatenated.xs(pos, level='Position')['L/SO%%'] - total_rates[pos])**2)/len(years))**0.5
+        for pos in concatenated.loc[args.start_year].index
+    }
+
+    return concatenated, positional_year_by_year, total_rates, stdev
+
+def plot(positional_year_by_year, stdev):
+    """
+    
+    :param positional_year_by_year: 
+    :param stdev: 
+    :return: 
+    """
+    fig = plt.figure()
+    ax1 = fig.add_subplot(111)
+    for pos, rate in positional_year_by_year.iteritems():
+        if len(years) == 1:
+            ax1.scatter(rate.index, rate, label="{} -- {}%".format(pos, 100.0 * round(rate.mean(), 4)))
+        elif len(years) > 1:
+            ax1.errorbar(rate.index, rate, yerr=stdev[pos], capsize=10,
+                         label="{} -- {}%".format(pos, 100.0 * round(rate.mean(), 4)))
+            ax1.fill_between(rate.index, rate - stdev[pos], rate + stdev[pos], alpha=0.1, linestyle='--')
+
+    ax1.set_title('Positional K Looking Rate\n(Total average in legend)')
+    ax1.set_xlabel('Year')
+    ax1.set_ylabel('Strikeout Looking PCT')
+    ax1.set_xlim(min(years), max(years))
+    ax1.legend(loc='lower center', ncol=len(positional_year_by_year) / 2, fontsize='small')
+
+    mng = plt.get_current_fig_manager()
+    mng.resize(*mng.window.maxsize())
+
+    plt.show()
+
 if __name__ == '__main__':
     parser = ArgumentParser()
     parser.add_argument("-s", "--start_year",
@@ -176,7 +235,7 @@ if __name__ == '__main__':
     parser.add_argument("-e", "--end_year",
                         type=int, default=2016,
                         help="Last year to look at data")
-    parser.add_argument("--excluded_positions", nargs='+',
+    parser.add_argument("--excluded_positions", default = [], nargs='+',
                         help=("Positions to be excluded from analysis.\n\n"
                               "Options must be 1-9, PH or DH"))
 
@@ -184,31 +243,6 @@ if __name__ == '__main__':
 
     years = years_in_question(args.start_year, args.end_year)
 
-    dfs = {yr: yearly_stats(yr, args.excluded_positions) for yr in years}
+    concatenated, positional_year_by_year, total_rates, stdev = create_concatenation(years, args.excluded_positions)
 
-    concatenated = pd.concat(dfs, keys=range(min(dfs.keys()), max(dfs.keys())+1), names=['Year', 'Position'])
-    positional_year_by_year = {
-        pos: concatenated.xs(pos, level='Position')['L/SO%%']
-        for pos in concatenated.loc[args.start_year].index
-    }
-
-    fig = plt.figure()
-    ax1 = fig.add_subplot(111)
-    for pos, rate in positional_year_by_year.iteritems():
-        if len(years) == 1:
-            ax1.scatter(rate.index, rate, label="{} -- {}%".format(pos, 100.0 * round(rate.mean(),4)))
-        elif len(years) > 1:
-            ax1.plot(rate.index, rate, label="{} -- {}%".format(pos, 100.0 * round(rate.mean(), 4)))
-
-    ax1.set_title('Positional K Looking Rate\n(Total average in legend)')
-    ax1.set_xlabel('Year')
-    ax1.set_ylabel('Strikeout Looking PCT')
-    ax1.set_xlim(min(years), max(years))
-    ax1.legend(loc='upper left')
-
-    plt.savefig('pct_by_year.pdf')
-
-    year_totals = concatenated.groupby(['Position']).sum()
-    year_totals['L/SO%%'] = year_totals['L/SO'] / year_totals['TPAa']
-    year_totals.sort_values('L/SO%%', inplace=True)
-
+    plot(positional_year_by_year, stdev)
