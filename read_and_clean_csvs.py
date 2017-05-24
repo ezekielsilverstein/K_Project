@@ -134,11 +134,14 @@ def groupby(joined):
     by_position = joined.groupby('Position').sum()
     by_position['TPAa'] = by_position[['AB', 'BB', 'SH', 'SF']].sum(axis=1)
     by_position['L/SO%%'] = by_position['L/SO'] / by_position['TPAa']
+    by_position['stdev'] = (((by_position['L/SO'] * (1 - by_position['L/SO%%'])**2)
+                             + ((by_position['TPAa'] - by_position['L/SO']) * (0 - by_position['L/SO%%'])**2))
+                            / by_position['TPAa'])
     by_position.sort_values('L/SO%%', inplace=True)
 
     return by_position
 
-def yearly_stats(year, pos_exclusions):
+def yearly_stats(year, pos_exclusions=[]):
     """
     Take a year and return the rankings by position
     :param year: 
@@ -183,23 +186,23 @@ def create_concatenation(years, excluded_positions):
     concatenated = pd.concat(dfs, keys=range(min(dfs.keys()), max(dfs.keys()) + 1), names=['Year', 'Position'])
 
     positional_year_by_year = {
-        pos: concatenated.xs(pos, level='Position')['L/SO%%']
+        pos: concatenated.xs(pos, level='Position')[['L/SO%%', 'stdev']]
         for pos in concatenated.loc[args.start_year].index
     }
 
-    year_totals = concatenated.groupby(['Position']).sum()
-    year_totals['L/SO%%'] = year_totals['L/SO'] / year_totals['TPAa']
-    year_totals.sort_values('L/SO%%', inplace=True)
-    total_rates = year_totals['L/SO%%']
+    # year_totals = concatenated.groupby(['Position']).sum()
+    # year_totals['L/SO%%'] = year_totals['L/SO'] / year_totals['TPAa']
+    # year_totals.sort_values('L/SO%%', inplace=True)
+    # total_rates = year_totals['L/SO%%']
+    #
+    # stdev = {
+    #     pos: (sum((concatenated.xs(pos, level='Position')['L/SO%%'] - total_rates[pos])**2)/len(years))**0.5
+    #     for pos in concatenated.loc[args.start_year].index
+    # }
 
-    stdev = {
-        pos: (sum((concatenated.xs(pos, level='Position')['L/SO%%'] - total_rates[pos])**2)/len(years))**0.5
-        for pos in concatenated.loc[args.start_year].index
-    }
+    return concatenated, positional_year_by_year#, total_rates, stdev
 
-    return concatenated, positional_year_by_year, total_rates, stdev
-
-def plot(positional_year_by_year, stdev, ebars):
+def plot(positional_year_by_year, ebars):
     """
     Plot the rates w/ or w/o errorbars
     :param positional_year_by_year: dict containing a positions yearly rate
@@ -208,14 +211,16 @@ def plot(positional_year_by_year, stdev, ebars):
     """
     fig = plt.figure()
     ax1 = fig.add_subplot(111)
-    for pos, rate in positional_year_by_year.iteritems():
+    for pos, df in positional_year_by_year.iteritems():
+        rate = df['L/SO%%']
+        stdev = df['stdev']
         if len(years) == 1:
             ax1.scatter(rate.index, rate, label="{} -- {}%".format(pos, 100.0 * round(rate.mean(), 4)))
         elif len(years) > 1:
             if ebars:
-                ax1.errorbar(rate.index, rate, yerr=stdev[pos], capsize=10,
+                ax1.errorbar(rate.index, rate, yerr=stdev, capsize=10,
                              label="{} -- {}%".format(pos, 100.0 * round(rate.mean(), 4)))
-                ax1.fill_between(rate.index, rate - stdev[pos], rate + stdev[pos], alpha=0.1, linestyle='--')
+                ax1.fill_between(rate.index, rate - stdev, rate + stdev, alpha=0.1, linestyle='--')
             else:
                 ax1.errorbar(rate.index, rate,
                              label="{} -- {}%".format(pos, 100.0 * round(rate.mean(), 4)))
@@ -250,6 +255,8 @@ if __name__ == '__main__':
 
     years = years_in_question(args.start_year, args.end_year)
 
-    concatenated, positional_year_by_year, total_rates, stdev = create_concatenation(years, args.excluded_positions)
-
-    plot(positional_year_by_year, stdev, args.errorbars)
+    # concatenated, positional_year_by_year, total_rates, stdev = create_concatenation(years, args.excluded_positions)
+    # concatenated, positional_year_by_year = create_concatenation(years, args.excluded_positions)
+    #
+    # plot(positional_year_by_year, stdev, args.errorbars)
+    # plot(positional_year_by_year, args.errorbars)
