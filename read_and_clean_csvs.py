@@ -182,24 +182,29 @@ def create_concatenation(years, excluded_positions):
     dfs = {yr: yearly_stats(yr, excluded_positions) for yr in years}
     concatenated = pd.concat(dfs, keys=range(min(dfs.keys()), max(dfs.keys()) + 1), names=['Year', 'Position'])
 
+    for yr in concatenated.index.levels[0]:
+        concatenated.loc[yr, 'Year_Avg'] = concatenated.loc[yr]['L/SO%%'].mean()
+
+    total_yearly_rates = {year: concatenated.loc[year]['Year_Avg'].mean() for year in concatenated.index.levels[0]}
+
     positional_year_by_year = {
         pos: concatenated.xs(pos, level='Position')['L/SO%%']
-        for pos in concatenated.loc[args.start_year].index
+        for pos in concatenated.index.levels[1]
     }
 
     year_totals = concatenated.groupby(['Position']).sum()
     year_totals['L/SO%%'] = year_totals['L/SO'] / year_totals['TPAa']
     year_totals.sort_values('L/SO%%', inplace=True)
-    total_rates = year_totals['L/SO%%']
+    total_pos_rates = year_totals['L/SO%%']
 
     stdev = {
-        pos: (sum((concatenated.xs(pos, level='Position')['L/SO%%'] - total_rates[pos])**2)/len(years))**0.5
-        for pos in concatenated.loc[args.start_year].index
+        pos: (sum((concatenated.xs(pos, level='Position')['L/SO%%'] - total_pos_rates[pos])**2)/len(years))**0.5
+        for pos in concatenated.index.levels[1]
     }
 
-    return concatenated, positional_year_by_year, total_rates, stdev
+    return concatenated, positional_year_by_year, total_pos_rates, total_yearly_rates, stdev
 
-def plot(positional_year_by_year, stdev, ebars):
+def plot(positional_year_by_year, total_yearly_rates, stdev, ebars):
     """
     Plot the rates w/ or w/o errorbars
     :param positional_year_by_year: dict containing a positions yearly rate
@@ -208,6 +213,9 @@ def plot(positional_year_by_year, stdev, ebars):
     """
     fig = plt.figure()
     ax1 = fig.add_subplot(111)
+
+    years, total_avg = zip(*sorted(total_yearly_rates.items()))
+
     for pos, rate in positional_year_by_year.iteritems():
         if len(years) == 1:
             ax1.scatter(rate.index, rate, label="{} -- {}%".format(pos, 100.0 * round(rate.mean(), 4)))
@@ -220,11 +228,13 @@ def plot(positional_year_by_year, stdev, ebars):
                 ax1.errorbar(rate.index, rate,
                              label="{} -- {}%".format(pos, 100.0 * round(rate.mean(), 4)))
 
+    ax1.errorbar(years, total_avg, linewidth=2.0, linestyle='--', color='k', label='Year average')
+
     ax1.set_title('Positional K Looking Rate\n(Total average in legend)')
     ax1.set_xlabel('Year')
     ax1.set_ylabel('Strikeout Looking PCT')
     ax1.set_xlim(min(years), max(years))
-    ax1.legend(loc='lower center', ncol=len(positional_year_by_year) / 2, fontsize='small')
+    ax1.legend(loc='lower center', ncol=len(positional_year_by_year) / 2 + 1, fontsize='small')
 
     mng = plt.get_current_fig_manager()
     mng.resize(*mng.window.maxsize())
@@ -250,6 +260,6 @@ if __name__ == '__main__':
 
     years = years_in_question(args.start_year, args.end_year)
 
-    concatenated, positional_year_by_year, total_rates, stdev = create_concatenation(years, args.excluded_positions)
+    concatenated, positional_year_by_year, total_pos_rates, total_yearly_rates, stdev = create_concatenation(years, args.excluded_positions)
 
-    plot(positional_year_by_year, stdev, args.errorbars)
+    plot(positional_year_by_year, total_yearly_rates, stdev, args.errorbars)
